@@ -1,127 +1,620 @@
 # FastAPI Course — Week 3: Integrating Streamlit and FastAPI
 
-This folder implements the Week 3 exercises as one product-management project. It continues the product API idea from Week 2 and adds a Streamlit frontend, JWT authentication, performance examples, and a more complete full-stack workflow.
+This folder implements the Week 3 exercises as a full-stack **Product Management System**.
 
-## What the assignment asks for
+The project builds on the FastAPI concepts from Week 2 and integrates a **Streamlit frontend**, **FastAPI backend**, **SQLite database**, **JWT authentication**, basic **performance optimization**, and cloud deployment.
 
-| Day | Assignment expectation | Where it is implemented |
+The application was also deployed using **Render** for the FastAPI backend and **Streamlit Community Cloud** for the frontend.
+
+---
+
+## What the Assignment Asks For
+
+| Day | Assignment expectation | Implementation |
 | --- | --- | --- |
-| 1 | Connect Streamlit to FastAPI, fetch data, display it as a table/chart | `streamlit_app.py` → **View products**, calling `GET /products` |
-| 2 | Build a full-stack product app; submit and fetch product data; CRUD | Streamlit **Manage products** + FastAPI product GET/POST/PUT/DELETE routes |
-| 3 | Add JWT/OAuth2-style authentication and protect product-management APIs | `/register`, `/login`, JWT bearer token, `Depends(current_user)` |
-| 4 | Use async I/O, caching and DB tuning; benchmark performance | `/simulate-io`, 10-second product cache, SQLite category index |
-| 5 | Deploy FastAPI + Streamlit | **Intentionally excluded from this ZIP at your request** |
-| 6 | Dockerize FastAPI and Streamlit and orchestrate with Docker Compose | Not included because this submission is being kept simple and deployment is excluded |
-| 7 | Project day: debug/polish and add features such as filters | Category filter, error handling, tabs, authenticated CRUD |
-| 8 | Scaling/load balancing and optimization for larger load | Explained conceptually below; production load balancing needs deployment infrastructure |
+| 1 | Connect Streamlit to FastAPI, fetch data, and display it | `streamlit_app.py` calls `GET /products` using `requests` |
+| 2 | Build a full-stack product-management application | Streamlit UI + FastAPI CRUD endpoints + SQLite |
+| 3 | Add JWT/OAuth2-style authentication and protect routes | `/register`, `/login`, JWT bearer tokens, `Depends(current_user)` |
+| 4 | Explore async I/O, caching, and database tuning | `/simulate-io`, product caching, SQLite category index |
+| 5 | Deploy the full-stack application | FastAPI deployed on Render and frontend deployed on Streamlit Community Cloud |
+| 6 | Dockerize the applications and use Docker Compose | Not included in this implementation |
+| 7 | Project day: debug, polish, and add features | Filtering, error handling, tabs, authentication, and CRUD UI |
+| 8 | Explore scaling and load balancing | Covered conceptually; production scaling requires deployment infrastructure |
 
-## Architecture
+---
+
+# Architecture
+
+The application follows a simple frontend-backend-database architecture.
 
 ```text
-User
-  |
-  v
-Streamlit frontend
-  |
-  | HTTP requests + JSON
-  | Authorization: Bearer <JWT> for protected writes
-  v
-FastAPI backend
-  |
-  | SQL
-  v
+                    User
+                     │
+                     ▼
+            Streamlit Frontend
+                     │
+                     │ HTTP / HTTPS
+                     │ JSON
+                     │
+                     │ Authorization:
+                     │ Bearer <JWT>
+                     ▼
+              FastAPI Backend
+                     │
+                     │ SQL
+                     ▼
+                  SQLite
+```
+
+The key architectural idea is that **Streamlit and FastAPI are separate applications**.
+
+Streamlit does not access SQLite directly.
+
+Instead:
+
+```text
+Streamlit
+    │
+    │ HTTP request
+    ▼
+FastAPI
+    │
+    │ SQL
+    ▼
 SQLite
 ```
 
-The key Week 3 idea is that Streamlit and FastAPI are separate applications. Streamlit does not directly read the database. It calls the FastAPI API with `requests`, and FastAPI owns validation, authentication and database access.
+FastAPI is responsible for:
 
-## Core concepts
+- API routing
+- request validation
+- authentication
+- business logic
+- database access
+- HTTP responses
 
-### GET vs POST vs PUT vs DELETE
+Streamlit is responsible for:
 
-- `GET /products` reads products.
-- `POST /products` creates a product.
-- `PUT /products/{id}` updates a product.
-- `DELETE /products/{id}` removes a product.
+- user input
+- forms
+- buttons
+- displaying data
+- sending API requests
+- storing the JWT for the current session
 
-Together these form CRUD: Create, Read, Update and Delete.
+---
 
-### JSON and Pydantic
+# Technologies Used
 
-Streamlit sends a Python dictionary with `requests.post(..., json=data)`. It travels over HTTP as JSON. FastAPI converts the JSON into the `Product` Pydantic model and validates required fields and types before the endpoint runs.
+| Technology | Purpose |
+| --- | --- |
+| Python | Application language |
+| FastAPI | Backend REST API |
+| Streamlit | Frontend user interface |
+| SQLite | Application database |
+| Pydantic | Request validation |
+| PyJWT | JWT creation and verification |
+| Requests | HTTP communication from Streamlit to FastAPI |
+| Uvicorn | ASGI server for FastAPI |
+| GitHub | Source-code repository |
+| Render | FastAPI backend hosting |
+| Streamlit Community Cloud | Streamlit frontend hosting |
 
-### JWT authentication
+---
 
-Registration stores a password hash. Login checks the credentials and returns a signed JWT. Streamlit keeps that token in `st.session_state` and sends it in the `Authorization` header:
+# CRUD Operations
+
+The application implements the four fundamental CRUD operations.
+
+| Operation | HTTP Method | Endpoint |
+| --- | --- | --- |
+| Create | POST | `/products` |
+| Read | GET | `/products` |
+| Read One | GET | `/products/{product_id}` |
+| Update | PUT | `/products/{product_id}` |
+| Delete | DELETE | `/products/{product_id}` |
+
+For example:
+
+```text
+GET /products
+```
+
+retrieves products, while:
+
+```text
+POST /products
+```
+
+creates a new product.
+
+---
+
+# JSON and Pydantic
+
+The Streamlit frontend sends product information to FastAPI as JSON.
+
+For example:
+
+```json
+{
+    "name": "Laptop",
+    "category": "Electronics",
+    "price": 70000
+}
+```
+
+Streamlit sends the request using:
+
+```python
+requests.post(
+    f"{API_URL}/products",
+    json=product_data
+)
+```
+
+FastAPI validates the request using a Pydantic model:
+
+```python
+class Product(BaseModel):
+    name: str
+    category: str
+    price: float
+```
+
+The request flow is:
+
+```text
+Streamlit
+    │
+    │ Python dictionary
+    ▼
+requests
+    │
+    │ JSON
+    ▼
+FastAPI
+    │
+    ▼
+Pydantic validation
+    │
+    ▼
+Endpoint logic
+```
+
+---
+
+# SQLite Database
+
+The application uses SQLite for persistence.
+
+Two tables are created:
+
+```text
+users
+products
+```
+
+The products table contains fields such as:
+
+```text
+id
+name
+category
+price
+```
+
+The users table stores:
+
+```text
+id
+username
+password_hash
+```
+
+The database file:
+
+```text
+week3.db
+```
+
+is automatically created when the FastAPI application starts.
+
+It is excluded from Git using `.gitignore`.
+
+SQLite is suitable for this learning/demo application, although a production distributed application would normally use a database such as PostgreSQL.
+
+---
+
+# JWT Authentication
+
+The application supports:
+
+```text
+Register
+   ↓
+Login
+   ↓
+JWT Token
+   ↓
+Protected API
+```
+
+A user first registers through:
+
+```text
+POST /register
+```
+
+and then logs in through:
+
+```text
+POST /login
+```
+
+After successful login, FastAPI returns a JWT access token.
+
+Streamlit stores the token using:
+
+```python
+st.session_state.token
+```
+
+Protected requests include:
 
 ```text
 Authorization: Bearer <token>
 ```
 
-`Depends(current_user)` verifies the token before protected POST/PUT/DELETE endpoints execute.
+FastAPI verifies the token using:
 
-The SHA-256 password hash in this learning project is deliberately simple. Production apps should use Argon2/bcrypt/scrypt and keep the JWT secret in a secret manager/environment variable.
+```python
+Depends(current_user)
+```
 
-### Async
+before allowing protected operations such as:
 
-`GET /simulate-io` uses `async def` and `await asyncio.sleep(3)` to demonstrate non-blocking waiting. `async` is most useful when the work being awaited is asynchronous I/O. The built-in `sqlite3` library itself is synchronous.
+```text
+POST /products
+PUT /products/{id}
+DELETE /products/{id}
+```
 
-### Caching and DB tuning
+Therefore product modification requires authentication.
 
-The unfiltered product list is cached in memory for 10 seconds. The cache is invalidated whenever a product changes. SQLite also gets an index on `category`, which is a basic example of database tuning for a frequently filtered column.
+> Note: SHA-256 is used in this project only as a simple demonstration of password hashing. A production authentication system should use a password-hashing algorithm such as Argon2, bcrypt, or scrypt.
 
-### Scaling and load balancing
+---
 
-Scaling means running more application capacity as traffic grows. Load balancing distributes requests across multiple backend instances. Streamlit Community Cloud is useful for hosting a Streamlit frontend, but it is not a substitute for a separately deployed/load-balanced FastAPI service.
+# Async I/O
 
-## Run locally
+The project contains:
 
-Create and activate a virtual environment, then install dependencies:
+```text
+GET /simulate-io
+```
+
+which demonstrates asynchronous waiting using:
+
+```python
+async def simulate_io():
+    await asyncio.sleep(3)
+```
+
+This represents operations where an application might be waiting for:
+
+- another API
+- network communication
+- external services
+- asynchronous database operations
+
+An important distinction is that declaring a function with `async def` does not automatically make every operation inside it asynchronous.
+
+The built-in Python `sqlite3` library used by this project is still synchronous.
+
+---
+
+# Caching
+
+The product endpoint demonstrates simple in-memory caching.
+
+The first request:
+
+```text
+GET /products
+```
+
+reads products from SQLite.
+
+The result is temporarily cached.
+
+A second request within the cache period can return the cached result instead of querying SQLite again.
+
+Conceptually:
+
+```text
+First request
+
+GET /products
+      │
+      ▼
+   SQLite
+      │
+      ▼
+    Cache
+      │
+      ▼
+   Response
+
+
+Next request
+
+GET /products
+      │
+      ▼
+    Cache
+      │
+      ▼
+   Response
+```
+
+The cache is invalidated whenever products are created, updated, or deleted.
+
+---
+
+# Database Tuning
+
+A SQLite index is created for:
+
+```text
+category
+```
+
+using:
+
+```sql
+CREATE INDEX IF NOT EXISTS
+idx_products_category
+ON products(category)
+```
+
+This demonstrates basic database optimization for a field frequently used for filtering.
+
+For example:
+
+```text
+GET /products?category=grocery
+```
+
+---
+
+# Scaling and Load Balancing
+
+Scaling means increasing application capacity as traffic increases.
+
+One common architecture is:
+
+```text
+                  Load Balancer
+                       │
+            ┌──────────┼──────────┐
+            ▼          ▼          ▼
+         FastAPI    FastAPI    FastAPI
+         Instance   Instance   Instance
+            1          2          3
+```
+
+The load balancer distributes incoming requests between backend instances.
+
+This project does not implement production load balancing because it is a learning/demo application.
+
+---
+
+# Local Setup
+
+Create a virtual environment:
 
 ```bash
 python3 -m venv .venv
+```
+
+Activate it on macOS/Linux:
+
+```bash
 source .venv/bin/activate
+```
+
+Install the dependencies:
+
+```bash
 python -m pip install -r requirements.txt
 ```
 
-Terminal 1:
+---
+
+## Run FastAPI
+
+In Terminal 1:
 
 ```bash
 python main.py
 ```
 
-FastAPI runs at `http://127.0.0.1:8080`. Swagger docs are at `http://127.0.0.1:8080/docs`.
+FastAPI runs locally at:
 
-Terminal 2:
+```text
+http://127.0.0.1:8080
+```
+
+Swagger documentation:
+
+```text
+http://127.0.0.1:8080/docs
+```
+
+---
+
+## Run Streamlit
+
+In Terminal 2:
 
 ```bash
 streamlit run streamlit_app.py
 ```
 
-The Streamlit UI normally opens at `http://localhost:8501`.
+Streamlit normally opens at:
 
-## GitHub and Streamlit Community Cloud
+```text
+http://localhost:8501
+```
 
-Yes, this folder can be pushed to GitHub. However, **deploying only `streamlit_app.py` to Streamlit Community Cloud does not automatically deploy the FastAPI backend**. The default `API_URL` is `http://127.0.0.1:8080`, which only works when FastAPI is running on the same machine.
+Locally the Streamlit frontend communicates with:
 
-For a real hosted version, deploy FastAPI separately and set an `API_URL` environment variable for the Streamlit app to that public backend URL. If the course only needs a GitHub submission and local demonstration, the two-terminal local setup is enough.
+```text
+http://127.0.0.1:8080
+```
 
-Also remember that SQLite is appropriate for this learning project but is not a good shared production database for horizontally scaled backend instances.
+---
 
-## Suggested test flow
+# Cloud Deployment
 
-1. Start FastAPI and Streamlit.
-2. Load products.
-3. Register a user.
-4. Log in and obtain a JWT.
-5. Create a product.
-6. Load products again.
-7. Update that product.
-8. Delete it.
-9. Click **Run simulated I/O**.
-10. Call `GET /products` twice quickly and observe `source` change from `database` to `cache`.
+The application was deployed as two separate services.
 
-## Files
+```text
+                     GitHub
+                        │
+              ┌─────────┴─────────┐
+              │                   │
+              ▼                   ▼
+      Streamlit Cloud           Render
+              │                   │
+              │               FastAPI
+              │                   │
+              └──── HTTPS ───────►│
+                                  │
+                                  ▼
+                                SQLite
+```
+
+## FastAPI Backend — Render
+
+The FastAPI backend is deployed on Render.
+
+Live backend:
+
+https://fastapi-assignments.onrender.com
+
+Swagger API documentation:
+
+https://fastapi-assignments.onrender.com/docs
+
+Render uses:
+
+```bash
+pip install -r requirements.txt
+```
+
+as the build command.
+
+The FastAPI service starts using:
+
+```bash
+uvicorn main:app --host 0.0.0.0 --port $PORT
+```
+
+The Render service uses:
+
+```text
+week3
+```
+
+as its root directory because the application is located inside the `week3/` folder of the repository.
+
+---
+
+## Streamlit Frontend — Streamlit Community Cloud
+
+The Streamlit frontend is deployed separately using Streamlit Community Cloud.
+
+The deployed application uses:
+
+```text
+week3/streamlit_app.py
+```
+
+as its main application file.
+
+The frontend is configured with the FastAPI backend URL:
+
+```text
+https://fastapi-assignments.onrender.com
+```
+
+The deployed architecture therefore becomes:
+
+```text
+Browser
+   │
+   ▼
+Streamlit Community Cloud
+   │
+   │ HTTPS REST requests
+   ▼
+Render
+   │
+   ▼
+FastAPI
+   │
+   ▼
+SQLite
+```
+
+This demonstrates that the frontend and backend can be independently deployed while still communicating through REST APIs.
+
+---
+
+# Suggested Test Flow
+
+After starting or deploying the application:
+
+1. Load the existing products.
+2. Register a new user.
+3. Log in.
+4. Receive and store the JWT.
+5. Create a new product.
+6. Load products again and verify the product appears.
+7. Update the product.
+8. Delete the product.
+9. Run the simulated I/O example.
+10. Call `GET /products` twice within 10 seconds and observe the response source change from `database` to `cache`.
+
+This exercises the complete application flow:
+
+```text
+User
+ ↓
+Streamlit
+ ↓
+HTTP / JSON
+ ↓
+FastAPI
+ ↓
+Authentication
+ ↓
+Pydantic
+ ↓
+SQLite
+ ↓
+FastAPI response
+ ↓
+Streamlit
+ ↓
+User
+```
+
+---
+
+# Project Structure
 
 ```text
 week3/
@@ -132,4 +625,47 @@ week3/
 └── .gitignore
 ```
 
-`week3.db` is created automatically on first run and is ignored by Git.
+`week3.db` is generated automatically at runtime and is not committed to Git.
+
+---
+
+# Key Learning Outcomes
+
+This project demonstrates:
+
+- building REST APIs with FastAPI
+- connecting a frontend to a backend using HTTP
+- GET, POST, PUT, and DELETE requests
+- CRUD application design
+- JSON request and response handling
+- Pydantic validation
+- SQLite persistence
+- JWT authentication
+- FastAPI dependencies
+- Streamlit session state
+- async I/O fundamentals
+- caching
+- basic database indexing
+- frontend/backend separation
+- GitHub-based source control
+- independent frontend and backend deployment
+
+The central architecture learned during Week 3 is:
+
+```text
+Frontend
+Streamlit
+    │
+    │ REST API
+    │ HTTP + JSON
+    ▼
+Backend
+FastAPI
+    │
+    │ SQL
+    ▼
+Database
+SQLite
+```
+
+This same general architecture can later be extended by replacing Streamlit with frameworks such as React, SQLite with PostgreSQL, and the simple deployment with containerized and load-balanced infrastructure.
