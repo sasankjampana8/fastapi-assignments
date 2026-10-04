@@ -12,7 +12,11 @@ import os
 import requests
 import streamlit as st
 
-API_URL = os.getenv("API_URL", "http://127.0.0.1:8080").rstrip("/")
+# API_URL = os.getenv("API_URL", "http://127.0.0.1:8080").rstrip("/")
+API_URL = st.secrets.get(
+    "API_URL",
+    "http://127.0.0.1:8080"
+).rstrip("/")
 
 st.set_page_config(page_title="Week 3 Product Manager", page_icon="📦")
 st.title("📦 Week 3 Product Management")
